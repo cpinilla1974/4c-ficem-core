@@ -1,172 +1,143 @@
-# Calculadora País 4C - v1
+# 4C FICEM CORE
 
-Sistema de Huella de Carbono para la Industria Cementera LATAM - Etapa 1
+Backend centralizado del sistema de huella de carbono para la industria cementera de Latinoamérica.
+
+## Arquitectura
+
+Este repositorio es el **backend REST** que sirve a:
+- Frontends de país (4c-peru, 4c-colombia, etc.)
+- Sistema de IA/analítica (knowledge-api)
+
+```
+Frontend País (4c-peru)
+        ↓
+4C FICEM CORE (Este repo) ← Backend REST
+        ↓
+PostgreSQL
+```
+
+## Tecnologías
+
+- **Framework**: FastAPI
+- **Base de datos**: PostgreSQL (esquemas por país)
+- **Autenticación**: JWT
+- **ORM**: SQLAlchemy 2.0+
+- **Migraciones**: Alembic
 
 ## Instalación
 
-### 1. Activar entorno virtual
-
 ```bash
-cd /home/cpinilla/projects/latam-3c
-source venv_v1/bin/activate
+# Crear entorno virtual
+python3 -m venv venv
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales
+
+# Inicializar base de datos
+alembic upgrade head
+
+# Crear usuario administrador
+python scripts/crear_usuario_admin.py
+
+# Ejecutar API
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# (Opcional) Ejecutar app de administración Streamlit
+streamlit run admin_app.py --server.port 8501
 ```
-
-### 2. Instalar dependencias (si es necesario)
-
-```bash
-pip install -r v1/requirements.txt
-```
-
-### 3. Inicializar base de datos (primera vez)
-
-```bash
-cd v1
-python init_db.py
-```
-
-## Ejecutar la aplicación
-
-```bash
-cd v1
-streamlit run app.py
-```
-
-La aplicación estará disponible en: http://localhost:8501
 
 ## Estructura del Proyecto
 
 ```
-v1/
-├── app.py                          # Aplicación principal
-├── requirements.txt                # Dependencias
-├── init_db.py                      # Script inicialización BD
-├── config/                         # Configuraciones
-├── modules/                        # Módulos lógica de negocio
-├── database/                       # Modelos y repositorios BD
-│   ├── __init__.py
-│   ├── models.py                   # Modelos SQLAlchemy
-│   └── repository.py               # Acceso a datos
-├── pages/                          # Páginas Streamlit (23)
-│   ├── dashboard/                  # 3 páginas
-│   │   ├── 01_resumen_consolidado.py
-│   │   ├── 02_distribucion_bandas_gcca.py
-│   │   └── 03_historico_timeline.py
-│   ├── empresas/                   # 3 páginas
-│   │   ├── 01_listado_empresas.py
-│   │   ├── 02_registro_empresa.py
-│   │   └── 03_detalle_empresa.py
-│   ├── calculadoras_3c/            # 4 páginas (PRIORIDAD FASE 1)
-│   │   ├── 01_importar_3c.py
-│   │   ├── 02_validar_importacion.py
-│   │   ├── 03_calcular.py
-│   │   └── 04_resultados_3c.py
-│   ├── excel_tradicional/          # 4 páginas
-│   │   ├── 01_generar_templates.py
-│   │   ├── 02_cargar_excel.py
-│   │   ├── 03_corregir_errores.py
-│   │   └── 04_procesar.py
-│   ├── analisis/                   # 4 páginas
-│   │   ├── 01_curvas_co2_resistencia.py
-│   │   ├── 02_comparativa_pais.py
-│   │   ├── 03_analisis_bandas.py
-│   │   └── 04_tendencias_temporales.py
-│   ├── reportes/                   # 3 páginas
-│   │   ├── 01_reporte_individual.py
-│   │   ├── 02_reporte_consolidado.py
-│   │   └── 03_exportar_datos.py
-│   └── hoja_ruta/                  # 3 páginas
-│       ├── 01_estado_implementacion.py
-│       ├── 02_checklist_entregables.py
-│       └── 03_empresas_piloto.py
-└── data/
-    └── latam4c.db                  # Base de datos SQLite
+4c-ficem-core/
+├── api/                  # FastAPI REST
+│   ├── main.py
+│   ├── routes/          # Endpoints
+│   ├── schemas/         # Pydantic models
+│   ├── services/        # Lógica de negocio
+│   └── middleware/      # Auth JWT
+├── calculos/            # Motor cálculos A1-A3
+├── excel/               # Procesamiento Excel
+├── database/            # Models, repositories
+├── modules/             # Utilidades (GCCA)
+├── sql/                 # Scripts SQL
+└── tests/               # Tests unitarios e integración
 ```
 
-## Navegación del Sistema
+## Endpoints Implementados
 
-### 📊 Dashboard (3 páginas)
-- Resumen Consolidado: Métricas generales del sistema
-- Distribución Bandas GCCA: Clasificación por bandas
-- Histórico Timeline: Evolución temporal
+### Autenticación
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | Autenticación JWT |
+| GET | `/api/v1/auth/me` | Info usuario actual |
 
-### 🏭 Empresas (3 páginas)
-- Listado Empresas: Tabla con todas las empresas
-- Registro Nueva Empresa: Formulario de alta
-- Detalle Empresa: Vista individual con historial
+### Usuarios
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/usuarios` | Listar usuarios (filtros: país, rol) |
+| GET | `/api/v1/usuarios/{id}` | Obtener usuario por ID |
+| POST | `/api/v1/usuarios` | Crear nuevo usuario |
+| PUT | `/api/v1/usuarios/{id}` | Actualizar usuario |
+| DELETE | `/api/v1/usuarios/{id}` | Desactivar usuario |
 
-### 🔧 Calculadoras 3C (4 páginas) - PRIORIDAD FASE 1
-- Importar desde 3C: Upload desde calculadora corporativa
-- Validar Importación: Verificación automática
-- Calcular: Motor de cálculos A1-A3
-- Resultados 3C: Visualización emisiones + banda GCCA
+### Procesos MRV
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/procesos` | Listar procesos MRV |
+| POST | `/api/v1/procesos` | Crear proceso MRV |
 
-### 📋 Excel Tradicional (4 páginas)
-- Generar Templates: Descarga Excel personalizado
-- Cargar Excel Manual: Upload y validación
-- Corregir Errores: Feedback específico
-- Procesar: Cálculo tras validación
+### Submissions
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/submissions` | Listar submissions |
+| POST | `/api/v1/submissions` | Crear submission |
 
-### 📈 Análisis y Visualizaciones (4 páginas)
-- Curvas CO₂ vs Resistencia: Benchmarking concretos
-- Comparativa por País: Percentiles P10-P90
-- Análisis por Bandas: Distribución GCCA
-- Tendencias Temporales: Evolución multi-año
+## App de Administración (Streamlit)
 
-### 📄 Reportes (3 páginas)
-- Generar Reporte Individual: PDF por empresa
-- Reporte Consolidado País: Agregación anónima
-- Exportar Datos: CSV/Excel
+Interfaz web para operadores FICEM:
+- **URL**: http://localhost:8501
+- **Credenciales por defecto**: `admin@ficem.org` / `admin123`
 
-### 🛣️ Hoja de Ruta (3 páginas)
-- Estado Implementación: Fases 1-4 progreso
-- Checklist Entregables: Tareas por fase
-- Empresas Piloto: Tracking validación
+**Funcionalidades**:
+- Dashboard con métricas
+- Gestión de usuarios (listar, crear, filtrar)
+- Gestión de procesos MRV
+- Monitoreo de submissions
 
-## Base de Datos
+## Documentación
 
-### Tabla: empresas
-- id (PK)
-- nombre
-- pais
-- perfil_planta (integrada/molienda/concreto)
-- contacto
-- email
-- created_at
-- updated_at
+- **Arquitectura del ecosistema**: [docs/ARQUITECTURA_ECOSISTEMA.md](docs/ARQUITECTURA_ECOSISTEMA.md)
+- **Plan de implementación**: [docs/PLAN_IMPLEMENTACION.md](docs/PLAN_IMPLEMENTACION.md)
+- **Páginas frontend**: [docs/FRONTEND_PAGES.md](docs/FRONTEND_PAGES.md)
+- **Metodología**: [CLAUDE.md](CLAUDE.md)
+- **Documentación técnica completa**: https://github.com/cpinilla1974/latam-3c
 
-**Datos de prueba:** 3 empresas (Colombia, Perú, Chile)
+## API Docs
 
-## Estado Actual
+Una vez ejecutando, accede a:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-✅ Estructura completa de carpetas
-✅ Entorno virtual configurado (venv_v1)
-✅ Base de datos SQLite creada y conectada
-✅ 23 páginas con títulos y descripciones
-✅ Navegación funcional entre páginas
-✅ Menú lateral colapsable Streamlit
+## Tests
 
-⏳ Lógica de negocio (Fase 1-4 según planificación)
+```bash
+# Ejecutar todos los tests
+pytest
 
-## Tecnologías
+# Con cobertura
+pytest --cov=api --cov=calculos --cov=excel
+```
 
-- **Python**: 3.12
-- **Streamlit**: 1.51.0
-- **SQLAlchemy**: 2.0.44
-- **Pandas**: 2.3.3
-- **Plotly**: 6.4.0
-- **OpenPyXL**: 3.1.5
-- **XlsxWriter**: 3.2.9
+## Desarrollo
 
-## Próximos Pasos
+Ver [PLAN_IMPLEMENTACION.md](PLAN_IMPLEMENTACION.md) para el orden de implementación por fases.
 
-1. Implementar generador de templates Excel (Fase 1)
-2. Desarrollar upgrade calculadoras 3C (Fase 1)
-3. Construir motor de cálculos A1-A3 (Fase 2)
-4. Implementar clasificación GCCA (Fase 2)
-5. Desarrollar visualizaciones y reportes (Fase 3)
+## Licencia
 
----
-
-**Versión:** 1.0 - MVP
-**Fecha:** 2025-11-13
-**Etapa:** 1 - Operador Centralizado
+Proyecto privado - FICEM LATAM

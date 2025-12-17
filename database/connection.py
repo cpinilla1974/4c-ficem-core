@@ -1,36 +1,50 @@
 """
-Módulo de conexión a base de datos
-Adaptado para usar PostgreSQL con SQLAlchemy
+Gestión de conexiones a la base de datos
 """
-import streamlit as st
-from database.models import get_engine
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from typing import Generator
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Configuración de base de datos desde variables de entorno
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://localhost:5432/ficem_core"
+)
+
+# Crear engine
+engine = create_engine(
+    DATABASE_URL,
+    echo=os.getenv("DEBUG", "False").lower() == "true",
+    pool_pre_ping=True,  # Verifica conexiones antes de usarlas
+    pool_size=5,
+    max_overflow=10
+)
+
+# Crear session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_connection(ruta_db=None):
+def get_db() -> Generator[Session, None, None]:
     """
-    Obtiene el engine de PostgreSQL compatible con pandas
-
-    Args:
-        ruta_db: Parámetro legacy, ignorado (se mantiene por compatibilidad)
-
-    Returns:
-        Engine de SQLAlchemy que pandas puede usar directamente
+    Dependency para FastAPI que proporciona una sesión de BD.
+    Se cierra automáticamente al terminar la request.
     """
-    # Retornar engine directamente - pandas lo acepta sin warnings
-    return get_engine()
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
-def get_connection_from_session():
+def init_db():
     """
-    Obtiene conexión desde session_state de Streamlit
+    Inicializa la base de datos creando todas las tablas.
+    Solo para desarrollo, en producción usar Alembic.
     """
-    # Usar la misma lógica que get_connection
-    return get_connection()
-
-
-def get_connection_indicadores():
-    """
-    Conexión a base de datos de indicadores
-    En PostgreSQL todo está en la misma BD
-    """
-    return get_connection()
+    from database.models import Base
+    Base.metadata.create_all(bind=engine)
+    print("✅ Base de datos inicializada")

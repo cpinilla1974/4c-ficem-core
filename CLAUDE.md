@@ -32,18 +32,20 @@
 
 ---
 
-## Documentación Centralizada
+## Documentación
 
-**IMPORTANTE**: La documentación técnica vive en `latam-3c`:
-
-| Documento | Contenido |
-|-----------|-----------|
-| `docs/1-tecnica/02-funcionalidades-por-usuario.md` | Funcionalidades por grupo, arquitectura, auth |
-| `docs/1-tecnica/03-flujo-datos.md` | Flujo completo: empresa → país → FICEM |
-| `docs/1-tecnica/01-estructura-datos-entrada.md` | Estructura de Excel de entrada |
-| `docs/3-sesiones/` | Registro de decisiones por fecha |
+### Documentación del Ecosistema (latam-3c)
+Arquitectura general, decisiones cross-proyecto, flujos entre sistemas:
+- `docs/1-tecnica/02-funcionalidades-por-usuario.md` - Funcionalidades por grupo
+- `docs/1-tecnica/03-flujo-datos.md` - Flujo empresa → país → FICEM
+- `docs/1-tecnica/01-estructura-datos-entrada.md` - Estructura Excel
 
 **URL**: https://github.com/cpinilla1974/latam-3c/tree/main/docs
+
+### Documentación Local (este repo)
+Diseño específico de componentes, APIs, modelos de FICEM CORE:
+- `docs/` - Arquitectura, diseño de APIs, modelos de datos
+- `docs/sesiones/` - Registro cronológico de decisiones de este proyecto
 
 ---
 
@@ -115,9 +117,10 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 - NO usar "Generated with Claude Code"
 - Commits limpios del usuario
 
-### Sesiones
-- Documentar decisiones en `latam-3c/docs/3-sesiones/`
-- Este repo es solo código
+### Documentación de Sesiones
+- **Sesiones locales**: `docs/sesiones/YYYY-MM-DD.md` para decisiones específicas de FICEM CORE
+- **Sesiones ecosistema**: `latam-3c/docs/3-sesiones/` para decisiones cross-proyecto
+- **IMPORTANTE**: Verificar siempre si existe sesión del día antes de crear nueva
 
 ---
 
