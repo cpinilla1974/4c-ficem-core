@@ -121,7 +121,13 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 - **Sesiones locales**: `docs/sesiones/YYYY-MM-DD.md` para decisiones específicas de FICEM CORE
 - **Sesiones ecosistema**: `latam-3c/docs/3-sesiones/` para decisiones cross-proyecto
 - **IMPORTANTE**: Verificar siempre si existe sesión del día antes de crear nueva
+- **NO incluir** secciones de "Próximos pasos", "Pendientes" o "TODO" en archivos de sesión - solo documentar lo que SE HIZO
+
+### Credenciales de Desarrollo
+- **Ubicación**: `storage/keys/DEV_CREDENTIALS.md`
+- **IMPORTANTE**: Este directorio está en `.gitignore` - NUNCA subir credenciales a Git
+- Para desarrollo local, copiar credenciales a tu `.env`
 
 ---
 
-**Última actualización**: 2025-12-07
+**Última actualización**: 2025-12-17

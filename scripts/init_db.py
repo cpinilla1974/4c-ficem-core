@@ -1,8 +1,15 @@
 """
 Script para inicializar la base de datos con datos de prueba
+
+NOTA: Este script usa credenciales de desarrollo.
+Ver storage/keys/DEV_CREDENTIALS.md para los valores.
+Configura las variables en tu .env antes de ejecutar.
 """
 import sys
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Agregar el directorio raíz al path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,6 +17,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from database.connection import engine, SessionLocal, init_db
 from database.models import Usuario, Empresa, UserRole, PerfilPlanta
 from api.services.auth_service import get_password_hash
+
+# Leer credenciales de variables de entorno
+FICEM_PASSWORD = os.getenv("FICEM_PASSWORD", "")
+COORD_PERU_PASSWORD = os.getenv("COORD_PERU_PASSWORD", "")
+COORD_COLOMBIA_PASSWORD = os.getenv("COORD_COLOMBIA_PASSWORD", "")
+EMPRESA_PERU_PASSWORD = os.getenv("EMPRESA_PERU_PASSWORD", "")
+EMPRESA_COLOMBIA_PASSWORD = os.getenv("EMPRESA_COLOMBIA_PASSWORD", "")
+EMPRESA_CHILE_PASSWORD = os.getenv("EMPRESA_CHILE_PASSWORD", "")
 
 
 def create_test_data():
@@ -53,12 +68,35 @@ def create_test_data():
         db.add_all([empresa_peru, empresa_colombia, empresa_chile])
         db.flush()  # Para obtener los IDs
 
+        # Verificar credenciales
+        missing_creds = []
+        if not FICEM_PASSWORD:
+            missing_creds.append("FICEM_PASSWORD")
+        if not COORD_PERU_PASSWORD:
+            missing_creds.append("COORD_PERU_PASSWORD")
+        if not COORD_COLOMBIA_PASSWORD:
+            missing_creds.append("COORD_COLOMBIA_PASSWORD")
+        if not EMPRESA_PERU_PASSWORD:
+            missing_creds.append("EMPRESA_PERU_PASSWORD")
+        if not EMPRESA_COLOMBIA_PASSWORD:
+            missing_creds.append("EMPRESA_COLOMBIA_PASSWORD")
+        if not EMPRESA_CHILE_PASSWORD:
+            missing_creds.append("EMPRESA_CHILE_PASSWORD")
+
+        if missing_creds:
+            print("❌ Error: Variables de entorno no configuradas:")
+            for cred in missing_creds:
+                print(f"   - {cred}")
+            print("\nConfigura estas variables en tu .env")
+            print("Ver storage/keys/DEV_CREDENTIALS.md para valores de desarrollo")
+            return
+
         # Crear usuarios
         usuarios = [
             # Operador FICEM
             Usuario(
                 email="ficem@ficem.org",
-                password_hash=get_password_hash("ficem123"),
+                password_hash=get_password_hash(FICEM_PASSWORD),
                 nombre="Operador FICEM",
                 rol=UserRole.OPERADOR_FICEM,
                 pais="regional",
@@ -67,7 +105,7 @@ def create_test_data():
             # Coordinador Perú
             Usuario(
                 email="coordinador@asocem.pe",
-                password_hash=get_password_hash("peru123"),
+                password_hash=get_password_hash(COORD_PERU_PASSWORD),
                 nombre="Coordinador ASOCEM",
                 rol=UserRole.COORDINADOR_PAIS,
                 pais="peru",
@@ -76,7 +114,7 @@ def create_test_data():
             # Empresa Perú
             Usuario(
                 email="empresa@cementoslima.com",
-                password_hash=get_password_hash("lima123"),
+                password_hash=get_password_hash(EMPRESA_PERU_PASSWORD),
                 nombre="Usuario Cementos Lima",
                 rol=UserRole.EMPRESA,
                 pais="peru",
@@ -85,7 +123,7 @@ def create_test_data():
             # Coordinador Colombia
             Usuario(
                 email="coordinador@asocreto.org",
-                password_hash=get_password_hash("colombia123"),
+                password_hash=get_password_hash(COORD_COLOMBIA_PASSWORD),
                 nombre="Coordinador ASOCRETO",
                 rol=UserRole.COORDINADOR_PAIS,
                 pais="colombia",
@@ -94,7 +132,7 @@ def create_test_data():
             # Empresa Colombia
             Usuario(
                 email="empresa@argos.com",
-                password_hash=get_password_hash("argos123"),
+                password_hash=get_password_hash(EMPRESA_COLOMBIA_PASSWORD),
                 nombre="Usuario Argos",
                 rol=UserRole.EMPRESA,
                 pais="colombia",
@@ -103,7 +141,7 @@ def create_test_data():
             # Empresa Chile
             Usuario(
                 email="empresa@polpaico.cl",
-                password_hash=get_password_hash("polpaico123"),
+                password_hash=get_password_hash(EMPRESA_CHILE_PASSWORD),
                 nombre="Usuario Polpaico",
                 rol=UserRole.EMPRESA,
                 pais="chile",
@@ -116,26 +154,14 @@ def create_test_data():
 
         print("\n✅ Datos de prueba creados exitosamente\n")
         print("=" * 60)
-        print("USUARIOS DE PRUEBA")
+        print("USUARIOS DE PRUEBA (passwords en storage/keys/DEV_CREDENTIALS.md)")
         print("=" * 60)
-        print("\n🔹 OPERADOR FICEM:")
-        print("   Email: ficem@ficem.org")
-        print("   Password: ficem123")
-        print("\n🔹 COORDINADOR PERÚ:")
-        print("   Email: coordinador@asocem.pe")
-        print("   Password: peru123")
-        print("\n🔹 EMPRESA PERÚ (Cementos Lima):")
-        print("   Email: empresa@cementoslima.com")
-        print("   Password: lima123")
-        print("\n🔹 COORDINADOR COLOMBIA:")
-        print("   Email: coordinador@asocreto.org")
-        print("   Password: colombia123")
-        print("\n🔹 EMPRESA COLOMBIA (Argos):")
-        print("   Email: empresa@argos.com")
-        print("   Password: argos123")
-        print("\n🔹 EMPRESA CHILE (Polpaico):")
-        print("   Email: empresa@polpaico.cl")
-        print("   Password: polpaico123")
+        print("\n🔹 OPERADOR FICEM: ficem@ficem.org")
+        print("🔹 COORDINADOR PERÚ: coordinador@asocem.pe")
+        print("🔹 EMPRESA PERÚ: empresa@cementoslima.com")
+        print("🔹 COORDINADOR COLOMBIA: coordinador@asocreto.org")
+        print("🔹 EMPRESA COLOMBIA: empresa@argos.com")
+        print("🔹 EMPRESA CHILE: empresa@polpaico.cl")
         print("\n" + "=" * 60)
 
     except Exception as e:

@@ -3,12 +3,14 @@ Rutas de autenticación
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 
 from database.connection import get_db
 from database.models import Usuario
 from api.schemas.auth import LoginRequest, TokenResponse, UserResponse
 from api.services.auth_service import authenticate_user, create_access_token
 from api.middleware.jwt_auth import get_current_user
+from api.permissions import obtener_tareas_pendientes
 
 router = APIRouter()
 
@@ -65,3 +67,17 @@ async def get_me(
         empresa_id=current_user.empresa_id,
         activo=current_user.activo
     )
+
+
+@router.get("/mis-tareas")
+async def get_mis_tareas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtener tareas pendientes del usuario según su rol.
+
+    Retorna lista de tareas con tipo, cantidad y acción sugerida.
+    """
+    tareas = obtener_tareas_pendientes(current_user, db)
+    return {"tareas": tareas, "total": len(tareas)}

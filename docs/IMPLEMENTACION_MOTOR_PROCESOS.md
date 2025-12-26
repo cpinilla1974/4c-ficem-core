@@ -267,11 +267,11 @@ uvicorn api.main:app --reload --port 8000
 # 2. Ver documentación interactiva
 open http://localhost:8000/docs
 
-# 3. Autenticarse
+# 3. Autenticarse (ver storage/keys/DEV_CREDENTIALS.md)
 POST /api/v1/auth/login
 {
-  "email": "ficem@ficem.org",
-  "password": "ficem123"
+  "email": "<EMAIL>",
+  "password": "<PASSWORD>"
 }
 
 # 4. Probar endpoints con token

@@ -29,6 +29,7 @@ from api.schemas.procesos import (
     ValidacionResult
 )
 from api.middleware.jwt_auth import get_current_user
+from api.permissions import tiene_permiso
 import uuid
 
 router = APIRouter()
@@ -56,8 +57,15 @@ async def crear_submission(
             detail=f"Proceso '{proceso_id}' no encontrado o no está activo"
         )
 
-    # Verificar permisos de empresa
-    if current_user.rol.value == "empresa":
+    # Verificar permisos - solo INFORMANTE_EMPRESA y SUPERVISOR_EMPRESA pueden crear
+    if not tiene_permiso(current_user, "submissions.crear"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para crear submissions"
+        )
+
+    # Usuarios de empresa solo pueden crear para su propia empresa
+    if current_user.rol.value in ["INFORMANTE_EMPRESA", "SUPERVISOR_EMPRESA", "VISOR_EMPRESA"]:
         if submission_data.empresa_id != current_user.empresa_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -125,11 +133,19 @@ async def listar_submissions(
     """
     query = db.query(Submission).filter(Submission.proceso_id == proceso_id)
 
-    # Si es empresa, solo ver sus propios submissions
-    if current_user.rol.value == "empresa":
+    # Filtrar según permisos del usuario
+    if tiene_permiso(current_user, "submissions.ver_todos"):
+        # ROOT, ADMIN_PROCESO, EJECUTIVO_FICEM ven todo
+        if empresa_id:
+            query = query.filter(Submission.empresa_id == empresa_id)
+    elif tiene_permiso(current_user, "submissions.ver_pais"):
+        # COORDINADOR_PAIS ve submissions de su país
+        query = query.join(Empresa).filter(Empresa.pais == current_user.pais)
+        if empresa_id:
+            query = query.filter(Submission.empresa_id == empresa_id)
+    elif tiene_permiso(current_user, "submissions.ver_empresa"):
+        # Usuarios de empresa solo ven su empresa
         query = query.filter(Submission.empresa_id == current_user.empresa_id)
-    elif empresa_id:  # Coordinador puede filtrar por empresa
-        query = query.filter(Submission.empresa_id == empresa_id)
 
     if estado:
         query = query.filter(Submission.estado_actual == estado)
@@ -175,13 +191,21 @@ async def obtener_submission(
             detail=f"Submission {submission_id} no encontrado"
         )
 
-    # Verificar permisos
-    if current_user.rol.value == "empresa":
-        if submission.empresa_id != current_user.empresa_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permisos para ver este submission"
-            )
+    # Verificar permisos de visibilidad
+    puede_ver = False
+    if tiene_permiso(current_user, "submissions.ver_todos"):
+        puede_ver = True
+    elif tiene_permiso(current_user, "submissions.ver_pais"):
+        empresa = db.query(Empresa).filter(Empresa.id == submission.empresa_id).first()
+        puede_ver = empresa and empresa.pais == current_user.pais
+    elif tiene_permiso(current_user, "submissions.ver_empresa"):
+        puede_ver = submission.empresa_id == current_user.empresa_id
+
+    if not puede_ver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para ver este submission"
+        )
 
     # Enriquecer con nombres
     empresa = db.query(Empresa).filter(Empresa.id == submission.empresa_id).first()
@@ -198,11 +222,15 @@ async def obtener_submission(
 async def subir_archivo(
     submission_id: uuid.UUID,
     archivo: UploadFile = File(...),
+    planta_id: int = Query(..., description="ID de la planta a la que pertenece el archivo"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Subir archivo Excel a un submission
+    Subir archivo Excel a un submission (uno por planta)
+
+    - **planta_id**: ID de la planta a la que corresponde este archivo
+    - Si ya existe un archivo para esa planta, se reemplaza
 
     **TODO**: Implementar almacenamiento real (S3, filesystem)
     """
@@ -214,8 +242,15 @@ async def subir_archivo(
             detail=f"Submission {submission_id} no encontrado"
         )
 
-    # Verificar permisos
-    if current_user.rol.value == "empresa":
+    # Verificar permisos - solo puede editar quien tiene permiso y es de la misma empresa
+    if not tiene_permiso(current_user, "submissions.editar"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para subir archivos"
+        )
+
+    # Usuarios de empresa solo pueden modificar submissions de su empresa
+    if current_user.rol.value in ["INFORMANTE_EMPRESA", "SUPERVISOR_EMPRESA"]:
         if submission.empresa_id != current_user.empresa_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -236,24 +271,114 @@ async def subir_archivo(
             detail="Solo se permiten archivos .xlsx"
         )
 
+    # Verificar que la planta existe y pertenece a la empresa
+    planta = db.query(Planta).filter(
+        Planta.id == planta_id,
+        Planta.empresa_id == submission.empresa_id
+    ).first()
+
+    if not planta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Planta {planta_id} no encontrada o no pertenece a la empresa"
+        )
+
     # TODO: Guardar archivo en S3 o filesystem
     # Por ahora solo simulamos
-    file_url = f"s3://ficem-uploads/{submission.proceso_id}/{submission_id}/{archivo.filename}"
+    file_url = f"s3://ficem-uploads/{submission.proceso_id}/{submission_id}/{planta_id}_{archivo.filename}"
 
-    submission.archivo_excel = {
+    nuevo_archivo = {
+        "planta_id": planta_id,
+        "planta_nombre": planta.nombre,
         "url": file_url,
         "filename": archivo.filename,
         "size_bytes": 0,  # TODO: calcular tamaño real
         "uploaded_at": datetime.utcnow().isoformat()
     }
 
+    # Obtener array actual o inicializar
+    archivos = submission.archivos_excel or []
+
+    # Buscar si ya existe archivo para esta planta y reemplazar
+    archivo_existente = False
+    for i, arch in enumerate(archivos):
+        if arch.get("planta_id") == planta_id:
+            archivos[i] = nuevo_archivo
+            archivo_existente = True
+            break
+
+    if not archivo_existente:
+        archivos.append(nuevo_archivo)
+
+    submission.archivos_excel = archivos
+
     db.commit()
     db.refresh(submission)
 
     return {
         "id": str(submission.id),
-        "archivo_excel": submission.archivo_excel,
-        "mensaje": "Archivo cargado exitosamente (simulado - implementar almacenamiento real)"
+        "archivos_excel": submission.archivos_excel,
+        "archivo_agregado": nuevo_archivo,
+        "mensaje": f"Archivo para planta '{planta.nombre}' cargado exitosamente"
+    }
+
+
+@router.delete("/submissions/{submission_id}/archivos/{planta_id}")
+async def eliminar_archivo(
+    submission_id: uuid.UUID,
+    planta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Eliminar archivo de una planta específica
+    """
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Submission {submission_id} no encontrado"
+        )
+
+    # Verificar permisos
+    if not tiene_permiso(current_user, "submissions.editar"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para eliminar archivos"
+        )
+
+    if current_user.rol.value in ["INFORMANTE_EMPRESA", "SUPERVISOR_EMPRESA"]:
+        if submission.empresa_id != current_user.empresa_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos para modificar este submission"
+            )
+
+    if submission.estado_actual != EstadoSubmission.BORRADOR:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden eliminar archivos en estado borrador"
+        )
+
+    # Filtrar archivo de la planta
+    archivos = submission.archivos_excel or []
+    archivos_filtrados = [a for a in archivos if a.get("planta_id") != planta_id]
+
+    if len(archivos_filtrados) == len(archivos):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay archivo para planta {planta_id}"
+        )
+
+    submission.archivos_excel = archivos_filtrados
+
+    db.commit()
+
+    return {
+        "id": str(submission.id),
+        "archivos_excel": submission.archivos_excel,
+        "mensaje": f"Archivo de planta {planta_id} eliminado"
     }
 
 
@@ -276,11 +401,11 @@ async def validar_submission(
             detail=f"Submission {submission_id} no encontrado"
         )
 
-    # Verificar que tenga archivo
-    if not submission.archivo_excel:
+    # Verificar que tenga al menos un archivo
+    if not submission.archivos_excel or len(submission.archivos_excel) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Debe subir un archivo antes de validar"
+            detail="Debe subir al menos un archivo antes de validar"
         )
 
     # TODO: Ejecutar validaciones reales
@@ -325,7 +450,14 @@ async def enviar_submission(
         )
 
     # Verificar permisos
-    if current_user.rol.value == "empresa":
+    if not tiene_permiso(current_user, "submissions.enviar"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para enviar submissions"
+        )
+
+    # Usuarios de empresa solo pueden enviar submissions de su empresa
+    if current_user.rol.value in ["INFORMANTE_EMPRESA", "SUPERVISOR_EMPRESA"]:
         if submission.empresa_id != current_user.empresa_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -339,11 +471,11 @@ async def enviar_submission(
             detail=f"No se puede enviar un submission en estado '{submission.estado_actual.value}'"
         )
 
-    # Verificar que tenga archivo y esté validado
-    if not submission.archivo_excel:
+    # Verificar que tenga archivos y esté validado
+    if not submission.archivos_excel or len(submission.archivos_excel) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Debe subir un archivo antes de enviar"
+            detail="Debe subir al menos un archivo antes de enviar"
         )
 
     if not submission.validaciones:
@@ -385,21 +517,21 @@ async def enviar_submission(
     )
 
 
-@router.post("/submissions/{submission_id}/review", response_model=SubmissionReviewResponse)
-async def revisar_submission(
+@router.post("/submissions/{submission_id}/aprobar-empresa", response_model=SubmissionReviewResponse)
+async def aprobar_empresa(
     submission_id: uuid.UUID,
     review_data: SubmissionReviewRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Aprobar o rechazar un submission (solo coordinador)
+    Aprobar o rechazar un submission a nivel empresa (SUPERVISOR_EMPRESA)
     """
     # Verificar permisos
-    if current_user.rol.value not in ["coordinador_pais", "operador_ficem"]:
+    if not tiene_permiso(current_user, "submissions.aprobar_empresa"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo coordinadores pueden revisar submissions"
+            detail="No tiene permiso para aprobar submissions a nivel empresa"
         )
 
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
@@ -410,11 +542,19 @@ async def revisar_submission(
             detail=f"Submission {submission_id} no encontrado"
         )
 
-    # Verificar estado
-    if submission.estado_actual not in [EstadoSubmission.ENVIADO, EstadoSubmission.EN_REVISION]:
+    # Verificar que es de su empresa
+    if current_user.rol.value == "SUPERVISOR_EMPRESA":
+        if submission.empresa_id != current_user.empresa_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puede aprobar submissions de su empresa"
+            )
+
+    # Verificar estado - solo ENVIADO puede ser aprobado por empresa
+    if submission.estado_actual != EstadoSubmission.ENVIADO:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede revisar un submission en estado '{submission.estado_actual.value}'"
+            detail=f"Solo se pueden aprobar submissions en estado ENVIADO. Estado actual: {submission.estado_actual.value}"
         )
 
     # Validar acción
@@ -426,11 +566,10 @@ async def revisar_submission(
 
     # Cambiar estado
     if review_data.accion == "aprobar":
-        submission.estado_actual = EstadoSubmission.APROBADO
-        submission.approved_at = datetime.utcnow()
-        proximos_pasos = "Los cálculos se ejecutarán automáticamente"
+        submission.estado_actual = EstadoSubmission.APROBADO_EMPRESA
+        proximos_pasos = "El submission será revisado por FICEM"
     else:
-        submission.estado_actual = EstadoSubmission.RECHAZADO
+        submission.estado_actual = EstadoSubmission.RECHAZADO_EMPRESA
         proximos_pasos = "Corrija los datos y vuelva a enviar"
 
     submission.reviewed_at = datetime.utcnow()
@@ -441,19 +580,107 @@ async def revisar_submission(
         "estado": submission.estado_actual.value,
         "fecha": datetime.utcnow().isoformat(),
         "user_id": current_user.id,
-        "user_nombre": current_user.nombre
+        "user_nombre": current_user.nombre,
+        "comentario": review_data.comentario
     })
     submission.workflow_history = history
 
     # Agregar comentario
-    comentarios = submission.comentarios or []
-    comentarios.append({
+    if review_data.comentario:
+        comentarios = submission.comentarios or []
+        comentarios.append({
+            "user_id": current_user.id,
+            "user_nombre": current_user.nombre,
+            "fecha": datetime.utcnow().isoformat(),
+            "texto": review_data.comentario
+        })
+        submission.comentarios = comentarios
+
+    db.commit()
+    db.refresh(submission)
+
+    return SubmissionReviewResponse(
+        id=submission.id,
+        estado_actual=submission.estado_actual,
+        reviewed_at=submission.reviewed_at,
+        proximos_pasos=proximos_pasos
+    )
+
+
+@router.post("/submissions/{submission_id}/aprobar-ficem", response_model=SubmissionReviewResponse)
+async def aprobar_ficem(
+    submission_id: uuid.UUID,
+    review_data: SubmissionReviewRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Aprobar o rechazar un submission a nivel FICEM (ROOT, ADMIN_PROCESO)
+    """
+    # Verificar permisos
+    if not tiene_permiso(current_user, "submissions.aprobar_ficem"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para aprobar submissions a nivel FICEM"
+        )
+
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Submission {submission_id} no encontrado"
+        )
+
+    # Verificar estado - solo APROBADO_EMPRESA o EN_REVISION_FICEM pueden ser aprobados por FICEM
+    if submission.estado_actual not in [EstadoSubmission.APROBADO_EMPRESA, EstadoSubmission.EN_REVISION_FICEM]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Solo se pueden aprobar submissions aprobados por empresa. Estado actual: {submission.estado_actual.value}"
+        )
+
+    # Validar acción
+    if review_data.accion not in ["aprobar", "rechazar", "en_revision"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Acción debe ser 'aprobar', 'rechazar' o 'en_revision'"
+        )
+
+    # Cambiar estado
+    if review_data.accion == "aprobar":
+        submission.estado_actual = EstadoSubmission.APROBADO_FICEM
+        submission.approved_at = datetime.utcnow()
+        proximos_pasos = "Los cálculos se ejecutarán automáticamente"
+    elif review_data.accion == "en_revision":
+        submission.estado_actual = EstadoSubmission.EN_REVISION_FICEM
+        proximos_pasos = "El submission está siendo revisado por FICEM"
+    else:
+        submission.estado_actual = EstadoSubmission.RECHAZADO_FICEM
+        proximos_pasos = "Corrija los datos y vuelva a enviar"
+
+    submission.reviewed_at = datetime.utcnow()
+
+    # Agregar al historial
+    history = submission.workflow_history or []
+    history.append({
+        "estado": submission.estado_actual.value,
+        "fecha": datetime.utcnow().isoformat(),
         "user_id": current_user.id,
         "user_nombre": current_user.nombre,
-        "fecha": datetime.utcnow().isoformat(),
-        "texto": review_data.comentario
+        "comentario": review_data.comentario
     })
-    submission.comentarios = comentarios
+    submission.workflow_history = history
+
+    # Agregar comentario
+    if review_data.comentario:
+        comentarios = submission.comentarios or []
+        comentarios.append({
+            "user_id": current_user.id,
+            "user_nombre": current_user.nombre,
+            "fecha": datetime.utcnow().isoformat(),
+            "texto": review_data.comentario
+        })
+        submission.comentarios = comentarios
 
     db.commit()
     db.refresh(submission)
@@ -527,8 +754,8 @@ async def obtener_resultados(
             detail=f"Submission {submission_id} no encontrado"
         )
 
-    # Verificar que esté aprobado
-    if submission.estado_actual not in [EstadoSubmission.APROBADO, EstadoSubmission.PUBLICADO]:
+    # Verificar que esté aprobado por FICEM
+    if submission.estado_actual not in [EstadoSubmission.APROBADO_FICEM, EstadoSubmission.PUBLICADO]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Resultados no disponibles. Estado actual: {submission.estado_actual.value}"

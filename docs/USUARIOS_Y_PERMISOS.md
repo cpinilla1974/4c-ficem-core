@@ -127,10 +127,164 @@ python scripts/migrate_usuarios_permisos_v2.py --rollback
 
 | Estado | Descripción |
 |--------|-------------|
-| `borrador` | En configuración |
-| `activo` | Abierto para submissions |
-| `cerrado` | No acepta nuevos submissions |
-| `archivado` | Histórico |
+| `BORRADOR` | En configuración |
+| `ACTIVO` | Abierto para submissions |
+| `CERRADO` | No acepta nuevos submissions |
+| `ARCHIVADO` | Histórico |
+
+---
+
+## API de Submissions
+
+### Endpoints
+
+| Método | Endpoint | Rol requerido | Descripción |
+|--------|----------|---------------|-------------|
+| POST | `/api/v1/procesos/{proceso_id}/submissions` | INFORMANTE_EMPRESA, SUPERVISOR_EMPRESA | Crear submission |
+| GET | `/api/v1/procesos/{proceso_id}/submissions` | Según visibilidad | Listar submissions de un proceso |
+| GET | `/api/v1/submissions/{id}` | Según visibilidad | Obtener detalle de submission |
+| POST | `/api/v1/submissions/{id}/upload` | INFORMANTE_EMPRESA | Subir archivo Excel |
+| POST | `/api/v1/submissions/{id}/validate` | Cualquier autenticado | Validar archivo |
+| POST | `/api/v1/submissions/{id}/submit` | INFORMANTE_EMPRESA, SUPERVISOR_EMPRESA | Enviar para revisión |
+| POST | `/api/v1/submissions/{id}/aprobar-empresa` | SUPERVISOR_EMPRESA | Aprobar/rechazar a nivel empresa |
+| POST | `/api/v1/submissions/{id}/aprobar-ficem` | ROOT, ADMIN_PROCESO | Aprobar/rechazar a nivel FICEM |
+| POST | `/api/v1/submissions/{id}/comentarios` | Cualquier autenticado | Agregar comentario |
+| GET | `/api/v1/submissions/{id}/results` | Según visibilidad | Obtener resultados (solo si APROBADO_FICEM) |
+
+### Visibilidad de Submissions
+
+| Rol | Qué ve |
+|-----|--------|
+| ROOT, ADMIN_PROCESO, EJECUTIVO_FICEM | Todos los submissions |
+| COORDINADOR_PAIS | Submissions de empresas de su país |
+| SUPERVISOR_EMPRESA, INFORMANTE_EMPRESA, VISOR_EMPRESA | Solo submissions de su empresa |
+
+### Flujo de Estados
+
+```
+BORRADOR ──────────────────────────────────────┐
+    │                                          │
+    │ POST /submit                             │
+    ▼                                          │
+ENVIADO ───────────────────────────────────────┤
+    │                                          │
+    ├── POST /aprobar-empresa {accion:"rechazar"}
+    │       │                                  │
+    │       ▼                                  │
+    │   RECHAZADO_EMPRESA ─────────────────────┘
+    │       (vuelve a BORRADOR para corregir)
+    │
+    └── POST /aprobar-empresa {accion:"aprobar"}
+            │
+            ▼
+    APROBADO_EMPRESA
+            │
+            ├── POST /aprobar-ficem {accion:"en_revision"}
+            │       │
+            │       ▼
+            │   EN_REVISION_FICEM
+            │       │
+            │       ├── {accion:"aprobar"} ──► APROBADO_FICEM
+            │       └── {accion:"rechazar"} ─► RECHAZADO_FICEM
+            │
+            ├── POST /aprobar-ficem {accion:"aprobar"}
+            │       │
+            │       ▼
+            │   APROBADO_FICEM ──► PUBLICADO
+            │
+            └── POST /aprobar-ficem {accion:"rechazar"}
+                    │
+                    ▼
+                RECHAZADO_FICEM
+                    (vuelve a BORRADOR para corregir)
+```
+
+### Ejemplos de Uso
+
+#### Crear submission (INFORMANTE_EMPRESA)
+```bash
+curl -X POST http://localhost:8000/api/v1/procesos/MRV-AR-2024/submissions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"empresa_id": 1, "planta_id": 1}'
+```
+
+#### Subir archivo Excel
+```bash
+curl -X POST http://localhost:8000/api/v1/submissions/{id}/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "archivo=@datos.xlsx"
+```
+
+#### Validar archivo
+```bash
+curl -X POST http://localhost:8000/api/v1/submissions/{id}/validate \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### Enviar para revisión
+```bash
+curl -X POST http://localhost:8000/api/v1/submissions/{id}/submit \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### Aprobar a nivel empresa (SUPERVISOR_EMPRESA)
+```bash
+curl -X POST http://localhost:8000/api/v1/submissions/{id}/aprobar-empresa \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accion": "aprobar", "comentario": "Datos verificados"}'
+```
+
+#### Aprobar a nivel FICEM (ROOT, ADMIN_PROCESO)
+```bash
+curl -X POST http://localhost:8000/api/v1/submissions/{id}/aprobar-ficem \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accion": "aprobar", "comentario": "Aprobado para cálculos"}'
+```
+
+### Request/Response
+
+#### SubmissionCreate (POST /submissions)
+```json
+{
+  "empresa_id": 1,
+  "planta_id": 1
+}
+```
+
+#### SubmissionReviewRequest (POST /aprobar-empresa, /aprobar-ficem)
+```json
+{
+  "accion": "aprobar",      // "aprobar", "rechazar", "en_revision" (solo FICEM)
+  "comentario": "Opcional"
+}
+```
+
+#### SubmissionResponse
+```json
+{
+  "id": "uuid",
+  "proceso_id": "MRV-AR-2024",
+  "empresa_id": 1,
+  "empresa_nombre": "Loma Negra",
+  "planta_id": 1,
+  "planta_nombre": "Planta Olavarría",
+  "estado_actual": "ENVIADO",
+  "archivo_excel": {
+    "url": "s3://...",
+    "filename": "datos.xlsx",
+    "uploaded_at": "2024-12-17T10:00:00Z"
+  },
+  "validaciones": [...],
+  "comentarios": [...],
+  "workflow_history": [...],
+  "submitted_at": "2024-12-17T10:30:00Z",
+  "reviewed_at": null,
+  "approved_at": null
+}
+```
 
 ---
 

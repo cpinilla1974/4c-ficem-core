@@ -78,8 +78,9 @@ def migrate():
                 approved_at TIMESTAMP,
 
                 CONSTRAINT check_estado CHECK (estado_actual IN (
-                    'borrador', 'enviado', 'en_revision', 'aprobado',
-                    'rechazado', 'publicado', 'archivado'
+                    'BORRADOR', 'ENVIADO', 'APROBADO_EMPRESA', 'EN_REVISION_FICEM',
+                    'APROBADO_FICEM', 'RECHAZADO_EMPRESA', 'RECHAZADO_FICEM',
+                    'PUBLICADO', 'ARCHIVADO'
                 ))
             )
         """))

@@ -102,7 +102,7 @@ streamlit run admin_app.py --server.port 8501
 
 Interfaz web para operadores FICEM:
 - **URL**: http://localhost:8501
-- **Credenciales por defecto**: `admin@ficem.org` / `admin123`
+- **Credenciales**: Configurar en `.env` (ver `.env.example`)
 
 **Funcionalidades**:
 - Dashboard con métricas

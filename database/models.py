@@ -49,10 +49,10 @@ class EstadoEnvio(str, enum.Enum):
 
 class EstadoProceso(str, enum.Enum):
     """Estados de un proceso MRV"""
-    BORRADOR = "borrador"
-    ACTIVO = "activo"
-    CERRADO = "cerrado"
-    ARCHIVADO = "archivado"
+    BORRADOR = "BORRADOR"
+    ACTIVO = "ACTIVO"
+    CERRADO = "CERRADO"
+    ARCHIVADO = "ARCHIVADO"
 
 
 class EstadoSubmission(str, enum.Enum):
@@ -310,16 +310,27 @@ class Submission(Base):
     """
 
     # Archivos y datos
-    archivo_excel = Column(JSONB)
+    archivos_excel = Column(JSONB, default=list)
     """
-    Estructura archivo_excel:
-    {
-        "url": "s3://ficem-uploads/PE/2024/empresa123_20241115.xlsx",
-        "filename": "datos_2024.xlsx",
-        "hash": "sha256:...",
-        "size_bytes": 245678,
-        "uploaded_at": "2024-11-15T14:30:00"
-    }
+    Estructura archivos_excel (array de archivos, uno por planta):
+    [
+        {
+            "planta_id": 1,
+            "planta_nombre": "Planta Olavarría",
+            "url": "s3://ficem-uploads/AR/2024/holcim_olavarria.xlsx",
+            "filename": "holcim_olavarria.xlsx",
+            "size_bytes": 245678,
+            "uploaded_at": "2024-11-15T14:30:00"
+        },
+        {
+            "planta_id": 2,
+            "planta_nombre": "Planta Campana",
+            "url": "s3://ficem-uploads/AR/2024/holcim_campana.xlsx",
+            "filename": "holcim_campana.xlsx",
+            "size_bytes": 198432,
+            "uploaded_at": "2024-11-15T14:35:00"
+        }
+    ]
     """
 
     datos_extraidos = Column(JSONB)

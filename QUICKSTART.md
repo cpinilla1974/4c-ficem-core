@@ -50,21 +50,20 @@ alembic upgrade head
 python scripts/crear_usuario_admin.py
 ```
 
-Esto creará el usuario ROOT:
+Esto creará el usuario ROOT con credenciales definidas en variables de entorno:
 
-| Email | Password | Rol |
-|-------|----------|-----|
-| `admin@ficem.org` | `admin123` | ROOT (Superadmin) |
+| Variable | Descripción |
+|----------|-------------|
+| `ADMIN_EMAIL` | Email del admin (default: admin@ficem.org) |
+| `ADMIN_PASSWORD` | Password del admin (REQUERIDO en producción) |
 
-Opcionalmente, puedes crear usuarios de ejemplo:
+Opcionalmente, puedes crear usuarios de ejemplo para desarrollo:
 ```bash
 echo "s" | python scripts/crear_usuario_admin.py
 ```
 
-Esto agregará:
-- `coord.peru@asocem.org` / `peru123` (Coordinador Perú)
-- `coord.colombia@ficem.org` / `colombia123` (Coordinador Colombia)
-- `admin.proceso@ficem.org` / `proceso123` (Admin Procesos)
+> **IMPORTANTE**: Los passwords de usuarios de ejemplo se definen en variables de entorno.
+> Ver `.env.example` para la lista completa.
 
 ### 7. Ejecutar servicios
 
@@ -92,7 +91,7 @@ streamlit run admin_app.py --server.port 8501
 
 **Admin App (Streamlit)**:
 - URL: http://localhost:8501
-- Login: `admin@ficem.org` / `admin123`
+- Login: Usar credenciales configuradas en `.env`
 
 ## Probar Login
 
@@ -101,11 +100,11 @@ streamlit run admin_app.py --server.port 8501
 1. Ir a http://localhost:8000/docs
 2. Expandir `POST /auth/login`
 3. Click en "Try it out"
-4. Usar credenciales de prueba:
+4. Usar credenciales configuradas en tu `.env`:
    ```json
    {
-     "email": "ficem@ficem.org",
-     "password": "ficem123"
+     "email": "<ADMIN_EMAIL>",
+     "password": "<ADMIN_PASSWORD>"
    }
    ```
 5. Click en "Execute"
@@ -117,8 +116,8 @@ streamlit run admin_app.py --server.port 8501
 curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "ficem@ficem.org",
-    "password": "ficem123"
+    "email": "$ADMIN_EMAIL",
+    "password": "$ADMIN_PASSWORD"
   }'
 ```
 
@@ -136,15 +135,15 @@ curl -X GET "http://localhost:8000/auth/me" \
 ### Ejemplo con fetch (JavaScript)
 
 ```javascript
-// Login
+// Login - usar credenciales de tu .env
 const loginResponse = await fetch('http://localhost:8000/auth/login', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    email: 'ficem@ficem.org',
-    password: 'ficem123'
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD
   })
 });
 
@@ -168,10 +167,10 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
 
-// Login
+// Login - usar credenciales de tu .env
 const loginResponse = await axios.post(`${API_URL}/auth/login`, {
-  email: 'ficem@ficem.org',
-  password: 'ficem123'
+  email: process.env.ADMIN_EMAIL,
+  password: process.env.ADMIN_PASSWORD
 });
 
 const token = loginResponse.data.access_token;
@@ -203,7 +202,7 @@ Una vez funcionando la autenticación, se pueden implementar las siguientes fase
 ## Gestión de Usuarios desde Admin App
 
 1. Accede a http://localhost:8501
-2. Login con `admin@ficem.org` / `admin123`
+2. Login con las credenciales configuradas en tu `.env`
 3. Ve a la sección "👥 Usuarios"
 4. **Ver usuarios**: Click en "🔄 Cargar Usuarios"
 5. **Crear usuario**: Pestaña "Crear Usuario", completa el formulario

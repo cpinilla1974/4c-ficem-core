@@ -18,10 +18,10 @@ class TipoProceso(str, Enum):
 
 class EstadoProceso(str, Enum):
     """Estados de un proceso MRV"""
-    BORRADOR = "borrador"
-    ACTIVO = "activo"
-    CERRADO = "cerrado"
-    ARCHIVADO = "archivado"
+    BORRADOR = "BORRADOR"
+    ACTIVO = "ACTIVO"
+    CERRADO = "CERRADO"
+    ARCHIVADO = "ARCHIVADO"
 
 
 class EstadoSubmission(str, Enum):
@@ -140,8 +140,18 @@ class SubmissionCreate(BaseModel):
     planta_id: Optional[int] = None
 
 
+class ArchivoExcelItem(BaseModel):
+    """Metadata de un archivo Excel subido (uno por planta)"""
+    planta_id: int
+    planta_nombre: Optional[str] = None
+    url: str
+    filename: str
+    size_bytes: int
+    uploaded_at: datetime
+
+
 class SubmissionUpload(BaseModel):
-    """Metadata de archivo subido"""
+    """Metadata de archivo subido (deprecated, usar ArchivoExcelItem)"""
     url: str
     filename: str
     hash: Optional[str] = None
@@ -184,7 +194,7 @@ class SubmissionResponse(BaseModel):
     usuario_id: int
     estado_actual: EstadoSubmission
     workflow_history: List[Dict[str, Any]]
-    archivo_excel: Optional[Dict[str, Any]]
+    archivos_excel: Optional[List[Dict[str, Any]]] = []
     validaciones: Optional[List[Dict[str, Any]]]
     comentarios: Optional[List[Dict[str, Any]]]
     resultados_calculos: Optional[Dict[str, Any]]

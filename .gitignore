@@ -26,6 +26,9 @@ chroma_db/
 .env
 .env.local
 
+# Credenciales de desarrollo (nunca subir)
+storage/keys/
+
 # OS
 .DS_Store
 Thumbs.db

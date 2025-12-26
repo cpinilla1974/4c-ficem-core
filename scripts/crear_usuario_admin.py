@@ -1,10 +1,18 @@
 """
 Script para crear usuario administrador inicial
 Uso: python scripts/crear_usuario_admin.py
+
+Las credenciales se leen de variables de entorno:
+- ADMIN_EMAIL (default: admin@ficem.org)
+- ADMIN_PASSWORD (REQUERIDO)
 """
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Agregar el directorio raíz al path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -15,6 +23,15 @@ from database.models import Usuario, UserRole
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Leer credenciales de variables de entorno
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@ficem.org")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+# Credenciales de usuarios de ejemplo (solo para desarrollo)
+COORD_PERU_PASSWORD = os.getenv("COORD_PERU_PASSWORD", "")
+COORD_COLOMBIA_PASSWORD = os.getenv("COORD_COLOMBIA_PASSWORD", "")
+ADMIN_PROCESO_PASSWORD = os.getenv("ADMIN_PROCESO_PASSWORD", "")
 
 
 def crear_usuario_admin():
@@ -31,8 +48,13 @@ def crear_usuario_admin():
             return
 
         # Crear usuario ROOT
-        email = "admin@ficem.org"
-        password = "admin123"  # Contraseña temporal
+        if not ADMIN_PASSWORD:
+            print("❌ Error: Variable de entorno ADMIN_PASSWORD no configurada")
+            print("   Configura ADMIN_PASSWORD en tu archivo .env")
+            return
+
+        email = ADMIN_EMAIL
+        password = ADMIN_PASSWORD
 
         hashed_password = pwd_context.hash(password)
 
@@ -74,24 +96,33 @@ def crear_usuarios_ejemplo():
     db: Session = SessionLocal()
 
     try:
+        # Verificar que las credenciales estén configuradas
+        if not COORD_PERU_PASSWORD or not COORD_COLOMBIA_PASSWORD or not ADMIN_PROCESO_PASSWORD:
+            print("❌ Error: Variables de entorno de usuarios de ejemplo no configuradas")
+            print("   Configura en tu .env:")
+            print("   - COORD_PERU_PASSWORD")
+            print("   - COORD_COLOMBIA_PASSWORD")
+            print("   - ADMIN_PROCESO_PASSWORD")
+            return
+
         usuarios_ejemplo = [
             {
                 "email": "coord.peru@asocem.org",
-                "password": "peru123",
+                "password": COORD_PERU_PASSWORD,
                 "nombre": "Coordinador Perú",
                 "rol": UserRole.COORDINADOR_PAIS,
                 "pais": "PERU"
             },
             {
                 "email": "coord.colombia@ficem.org",
-                "password": "colombia123",
+                "password": COORD_COLOMBIA_PASSWORD,
                 "nombre": "Coordinador Colombia",
                 "rol": UserRole.COORDINADOR_PAIS,
                 "pais": "COLOMBIA"
             },
             {
                 "email": "admin.proceso@ficem.org",
-                "password": "proceso123",
+                "password": ADMIN_PROCESO_PASSWORD,
                 "nombre": "Admin Procesos FICEM",
                 "rol": UserRole.ADMIN_PROCESO,
                 "pais": "LATAM"
@@ -120,7 +151,7 @@ def crear_usuarios_ejemplo():
             )
 
             db.add(nuevo_usuario)
-            print(f"  ✓ {user_data['email']} - Creado (password: {user_data['password']})")
+            print(f"  ✓ {user_data['email']} - Creado")
 
         db.commit()
         print("\n✓ Usuarios de ejemplo creados")

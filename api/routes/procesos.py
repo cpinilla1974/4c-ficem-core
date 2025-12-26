@@ -15,6 +15,7 @@ from api.schemas.procesos import (
     ProcesoListItem
 )
 from api.middleware.jwt_auth import get_current_user
+from api.permissions import tiene_permiso
 
 router = APIRouter()
 
@@ -87,15 +88,14 @@ async def crear_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Crear nuevo proceso MRV (solo Operador FICEM)
+    Crear nuevo proceso MRV
 
-    **Requiere**: rol `operador_ficem`
+    **Requiere**: permiso `procesos.crear`
     """
-    # Verificar permisos (root o admin_proceso)
-    if current_user.rol.value not in ["ROOT", "ADMIN_PROCESO"]:
+    if not tiene_permiso(current_user, "procesos.crear"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo root o admin_proceso pueden crear procesos"
+            detail="No tiene permiso para crear procesos"
         )
 
     # Verificar si ya existe
@@ -135,13 +135,14 @@ async def actualizar_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Actualizar configuración de un proceso (solo root o admin_proceso)
+    Actualizar configuración de un proceso
+
+    **Requiere**: permiso `procesos.editar`
     """
-    # Verificar permisos
-    if current_user.rol.value not in ["ROOT", "ADMIN_PROCESO"]:
+    if not tiene_permiso(current_user, "procesos.editar"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo root o admin_proceso pueden actualizar procesos"
+            detail="No tiene permiso para editar procesos"
         )
 
     proceso = db.query(ProcesoMRV).filter(ProcesoMRV.id == proceso_id).first()
@@ -178,13 +179,12 @@ async def cambiar_estado_proceso(
     """
     Cambiar estado de un proceso (borrador → activo → cerrado → archivado)
 
-    **Requiere**: rol `root` o `admin_proceso`
+    **Requiere**: permiso `procesos.cambiar_estado`
     """
-    # Verificar permisos
-    if current_user.rol.value not in ["ROOT", "ADMIN_PROCESO"]:
+    if not tiene_permiso(current_user, "procesos.cambiar_estado"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo root o admin_proceso pueden cambiar estados"
+            detail="No tiene permiso para cambiar estado de procesos"
         )
 
     proceso = db.query(ProcesoMRV).filter(ProcesoMRV.id == proceso_id).first()
@@ -212,13 +212,12 @@ async def eliminar_proceso(
     """
     Eliminar un proceso (solo si no tiene submissions)
 
-    **Requiere**: rol `root` (solo root puede eliminar)
+    **Requiere**: permiso `procesos.eliminar`
     """
-    # Verificar permisos - solo root puede eliminar
-    if current_user.rol.value != "ROOT":
+    if not tiene_permiso(current_user, "procesos.eliminar"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo root puede eliminar procesos"
+            detail="No tiene permiso para eliminar procesos"
         )
 
     proceso = db.query(ProcesoMRV).filter(ProcesoMRV.id == proceso_id).first()

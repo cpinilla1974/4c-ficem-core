@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "false").lower() == "true"  # Solo en producción
+
+# Credenciales para auto-login en desarrollo (deben estar en .env)
+DEV_ADMIN_EMAIL = os.getenv("DEV_ADMIN_EMAIL", "")
+DEV_ADMIN_PASSWORD = os.getenv("DEV_ADMIN_PASSWORD", "")
 
 st.set_page_config(
     page_title="Admin FICEM CORE",
@@ -26,6 +31,28 @@ def init_session():
         st.session_state.token = None
     if 'user' not in st.session_state:
         st.session_state.user = None
+
+    # En desarrollo, auto-login como ROOT (usando credenciales de .env)
+    if not REQUIRE_AUTH and st.session_state.token is None and DEV_ADMIN_EMAIL and DEV_ADMIN_PASSWORD:
+        try:
+            # Login automático con usuario admin desde variables de entorno
+            response = requests.post(
+                f"{API_URL}/api/v1/auth/login",
+                json={"email": DEV_ADMIN_EMAIL, "password": DEV_ADMIN_PASSWORD}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                st.session_state.token = data["access_token"]
+
+                # Obtener datos del usuario
+                user_response = requests.get(
+                    f"{API_URL}/api/v1/auth/me",
+                    headers={"Authorization": f"Bearer {st.session_state.token}"}
+                )
+                if user_response.status_code == 200:
+                    st.session_state.user = user_response.json()
+        except:
+            pass  # Si falla, se mostrará el login normal
 
 
 def login_form():
@@ -112,19 +139,6 @@ def main_app():
 def show_dashboard():
     """Dashboard principal con estadísticas"""
     st.title("📊 Dashboard")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Total Usuarios", "N/A", help="Próximamente")
-
-    with col2:
-        st.metric("Procesos Activos", "N/A", help="Próximamente")
-
-    with col3:
-        st.metric("Submissions Pendientes", "N/A", help="Próximamente")
-
-    st.divider()
 
     st.info("Dashboard en desarrollo. Próximamente se agregarán estadísticas en tiempo real.")
 
@@ -284,17 +298,47 @@ def show_procesos():
             )
 
         if st.button("🔄 Cargar Procesos"):
-            st.info("Endpoint /procesos pendiente de implementar en la API")
+            try:
+                # Construir query params
+                params = {}
+                if filter_pais != "Todos":
+                    params["pais"] = filter_pais
+                if filter_tipo != "Todos":
+                    params["tipo"] = filter_tipo
+                if filter_estado != "Todos":
+                    params["estado"] = filter_estado
 
-            # Placeholder de datos
-            st.dataframe({
-                "ID": ["produce-peru-2024", "mrv-colombia-2024"],
-                "País": ["PE", "CO"],
-                "Tipo": ["PRODUCE", "MRV_HR"],
-                "Nombre": ["PRODUCE Perú 2024", "MRV Colombia 2024"],
-                "Estado": ["ACTIVO", "ACTIVO"],
-                "Ciclo": ["2024", "2024"]
-            })
+                response = requests.get(
+                    f"{API_URL}/api/v1/procesos",
+                    headers=get_headers(),
+                    params=params
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    procesos = data.get("items", [])
+
+                    if len(procesos) == 0:
+                        st.warning("No se encontraron procesos con los filtros aplicados")
+                    else:
+                        # Formatear datos para tabla
+                        tabla_data = {
+                            "ID": [p["id"] for p in procesos],
+                            "País": [p["pais_iso"] for p in procesos],
+                            "Tipo": [p["tipo"] for p in procesos],
+                            "Nombre": [p["nombre"] for p in procesos],
+                            "Estado": [p["estado"] for p in procesos],
+                            "Ciclo": [p.get("ciclo", "N/A") for p in procesos]
+                        }
+
+                        st.dataframe(tabla_data, use_container_width=True)
+                        st.caption(f"Total: {data.get('total', len(procesos))} proceso(s)")
+                elif response.status_code == 403:
+                    st.error("No tiene permisos para ver procesos")
+                else:
+                    st.error(f"Error al cargar procesos: {response.status_code}")
+            except Exception as e:
+                st.error(f"Error de conexión: {str(e)}")
 
     with tab2:
         st.subheader("Crear Nuevo Proceso MRV")
@@ -338,7 +382,6 @@ def show_procesos():
             if submit:
                 if proceso_id and nombre and ciclo:
                     st.info("Endpoint /procesos POST pendiente de implementar en la API")
-                    st.success(f"Proceso {proceso_id} creado exitosamente (simulado)")
                 else:
                     st.error("Por favor complete todos los campos obligatorios")
 
@@ -349,48 +392,7 @@ def show_submissions():
 
     st.subheader("Envíos Recientes")
 
-    # Filtros
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        filter_proceso = st.selectbox(
-            "Proceso",
-            ["Todos", "produce-peru-2024", "mrv-colombia-2024"],
-            key="filter_proceso_submissions"
-        )
-
-    with col2:
-        filter_estado = st.selectbox(
-            "Estado",
-            ["Todos", "BORRADOR", "ENVIADO", "EN_REVISION_FICEM", "APROBADO_FICEM"],
-            key="filter_estado_submissions"
-        )
-
-    with col3:
-        filter_empresa = st.text_input("Empresa", key="filter_empresa_submissions")
-
-    if st.button("🔄 Cargar Submissions"):
-        st.info("Endpoint /submissions pendiente de implementar en la API")
-
-        # Placeholder de datos
-        st.dataframe({
-            "ID": ["abc-123", "def-456"],
-            "Proceso": ["produce-peru-2024", "produce-peru-2024"],
-            "Empresa": ["Cementos Lima", "Cementos Pacasmayo"],
-            "Estado": ["EN_REVISION_FICEM", "APROBADO_FICEM"],
-            "Creado": ["2024-11-15", "2024-11-10"],
-            "Última actualización": ["2024-11-20", "2024-11-18"]
-        })
-
-    st.divider()
-
-    st.info("""
-    **Próximamente:**
-    - Detalle de cada submission
-    - Descarga de archivos Excel
-    - Revisión y aprobación inline
-    - Historial de cambios de estado
-    - Comentarios y observaciones
-    """)
+    st.info("Endpoint /submissions pendiente de implementar en la API")
 
 
 def main():
