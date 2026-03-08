@@ -1,0 +1,82 @@
+# Configuración de País: Perú
+# Fuente: 4c-peru/docs/REQUISITOS_PERU.md
+# Fecha: 2026-01-18
+
+pais:
+  codigo: peru
+  nombre: Perú
+
+# Coordinador del país (Asociación cementera nacional)
+coordinador:
+  nombre: Coordinador ASOCEM
+  email: coordinador@asocem.pe
+  password: peru123
+  organizacion: ASOCEM (Asociación de Productores de Cemento)
+
+# Empresas participantes
+empresas:
+  # 1. UNACEM
+  - nombre: UNACEM
+    email: contacto@unacem.com.pe
+    perfil_planta: integrada
+    contacto: Unión Andina de Cementos
+
+    usuarios:
+      - nombre: Informante UNACEM
+        email: informante@unacem.com.pe
+        rol: INFORMANTE_EMPRESA
+        password: demo123
+
+      - nombre: Supervisor UNACEM
+        email: supervisor@unacem.com.pe
+        rol: SUPERVISOR_EMPRESA
+        password: demo123
+
+      - nombre: Visor UNACEM
+        email: visor@unacem.com.pe
+        rol: VISOR_EMPRESA
+        password: demo123
+
+  # 2. Cementos Pacasmayo
+  - nombre: Cementos Pacasmayo
+    email: contacto@pacasmayo.com.pe
+    perfil_planta: integrada
+    contacto: Cementos Pacasmayo S.A.
+
+    usuarios:
+      - nombre: Informante Pacasmayo
+        email: informante@pacasmayo.com.pe
+        rol: INFORMANTE_EMPRESA
+        password: demo123
+
+      - nombre: Supervisor Pacasmayo
+        email: supervisor@pacasmayo.com.pe
+        rol: SUPERVISOR_EMPRESA
+        password: demo123
+
+      - nombre: Visor Pacasmayo
+        email: visor@pacasmayo.com.pe
+        rol: VISOR_EMPRESA
+        password: demo123
+
+  # 3. Yura S.A.
+  - nombre: Yura S.A.
+    email: contacto@yura.com.pe
+    perfil_planta: integrada
+    contacto: Yura S.A.
+
+    usuarios:
+      - nombre: Informante Yura
+        email: informante@yura.com.pe
+        rol: INFORMANTE_EMPRESA
+        password: demo123
+
+      - nombre: Supervisor Yura
+        email: supervisor@yura.com.pe
+        rol: SUPERVISOR_EMPRESA
+        password: demo123
+
+      - nombre: Visor Yura
+        email: visor@yura.com.pe
+        rol: VISOR_EMPRESA
+        password: demo123
