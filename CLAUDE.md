@@ -117,11 +117,9 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 - NO usar "Generated with Claude Code"
 - Commits limpios del usuario
 
-### Documentación de Sesiones
-- **Sesiones locales**: `docs/sesiones/YYYY-MM-DD.md` para decisiones específicas de FICEM CORE
-- **Sesiones ecosistema**: `latam-3c/docs/3-sesiones/` para decisiones cross-proyecto
-- **IMPORTANTE**: Verificar siempre si existe sesión del día antes de crear nueva
-- **NO incluir** secciones de "Próximos pasos", "Pendientes" o "TODO" en archivos de sesión - solo documentar lo que SE HIZO
+### Sesiones de Trabajo
+- `/ultima-sesion` - Leer última sesión documentada
+- `/documentar-sesion` - Documentar trabajo de la sesión actual
 
 ### Credenciales de Desarrollo
 - **Ubicación**: `storage/keys/DEV_CREDENTIALS.md`
